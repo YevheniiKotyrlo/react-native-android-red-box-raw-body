@@ -9,7 +9,7 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 const config = {
   resolver: {
     // A resolver that fails with a plain Error, which Metro has no error kind for: it answers the bundle request with an
-    // InternalError, as it does when its file watcher fails to start.
+    // InternalError.
     resolveRequest: (context, moduleName, platform) => {
       if (moduleName === './throws-in-the-resolver') {
         throw new Error('this resolver throws');

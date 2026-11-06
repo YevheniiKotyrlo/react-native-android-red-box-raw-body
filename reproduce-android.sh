@@ -4,13 +4,18 @@
 # throws a plain Error for the module App.tsx imports, so Metro answers the app's bundle request with an InternalError,
 # which names no file, line or column.
 # Exits 1 while the red box shows the raw answer (its "Body:", its JSON escapes or its ANSI escape sequences), 0 once it
-# shows the answer's message without them, and 2 when a step fails or the red box shows another error.
+# shows the answer's message without them, and 2 when a step fails, Metro answers anything but that InternalError, or
+# the red box shows another error.
+# React Native logs "Exception in native call" and then posts the red box to the UI thread, and logs nothing once it is
+# up: the dump that follows relies on `uiautomator dump` waiting for the screen to settle, and exits 2 when it finds no
+# red box.
 set -Eeuo pipefail
 trap 'echo "failed: $BASH_COMMAND" >&2; exit 2' ERR
 cd "$(dirname "$0")/ReproducerApp"
 rm -rf tmp
 mkdir tmp
 package=com.reproducerapp
+bundle_request='/index.bundle?platform=android&dev=true&minify=false'
 metro=
 stop_metro() {
   [ -n "$metro" ] || return 0
@@ -57,34 +62,35 @@ exec {output}<&-
 adb logcat -c
 step adb shell am start -n "$package/.MainActivity"
 adb shell am start -n "$package/.MainActivity" > /dev/null
-# React Native logs the failure it shows in the red box, then puts the red box up.
 timeout 300 adb logcat -m 1 -e 'Exception in native call' '*:E' > tmp/logcat.txt ||
   { echo 'the app logged no failure within 300 s' >&2; exit 2; }
 adb shell uiautomator dump --windows /sdcard/red-box.xml > /dev/null
 adb exec-out cat /sdcard/red-box.xml > tmp/red-box.xml
 adb exec-out screencap -p > tmp/red-box.png
-adb logcat -d -v tag -m 1 -e 'org.json.JSONException' '*:W' > tmp/logcat-parse.txt
-status=$(curl -s --max-time 300 -o tmp/answer.json -w '%{http_code}' 'http://localhost:8081/index.bundle?platform=android&dev=true&minify=false' || true)
+adb logcat -d -v tag -m 1 -e 'Could not parse DebugServerException' '*:W' > tmp/logcat-parse.txt
+status=$(curl -s --max-time 300 -o tmp/answer.json -w '%{http_code}' "http://localhost:8081$bundle_request" || true)
 stop_metro
 
 versions=$(node -p "'react-native ' + require('react-native/package.json').version + ', metro ' + require('metro/package.json').version")
 device=$(adb shell getprop ro.product.model | tr -d '\r')
 android=$(adb shell getprop ro.build.version.release | tr -d '\r')
-answer=$(node -e "
-const body = JSON.parse(require('node:fs').readFileSync('tmp/answer.json', 'utf8'))
-const shown = (value) => (value === undefined ? 'none' : JSON.stringify(value))
-console.log('type ' + body.type + ', filename ' + shown(body.filename) + ', lineNumber ' + shown(body.lineNumber) + ', column ' + shown(body.column))
-")
 echo
 echo "$versions, $device on Android $android"
-echo "GET /index.bundle?platform=android -> $status: $answer"
-tr -d '\r' < tmp/logcat-parse.txt | { grep -E 'JSONException|DebugServerException[$]Companion[.]parse' || true; } > tmp/parse-failure.txt
+answer_verdict=0
+node read-answer.mjs "$bundle_request" "$status" tmp/answer.json || answer_verdict=$?
+tr -d '\r' < tmp/logcat-parse.txt | awk '
+  { shown = length($0) > 160 ? substr($0, 1, 160) "…" : $0 }
+  !through_parse { print shown; if ($0 ~ /DebugServerException[$]Companion[.]parse/) through_parse = 1; next }
+  { frames_left_out = 1 }
+  END { if (frames_left_out) print "…" }
+' > tmp/parse-failure.txt
 if [ -s tmp/parse-failure.txt ]; then
   echo "React Native's log as it reads the answer:"
   sed 's/^/  /' tmp/parse-failure.txt
 else
-  echo 'React Native logged no JSONException reading the answer'
+  echo 'React Native logged no failure to parse the answer'
 fi
 verdict=0
 node read-red-box.mjs tmp/red-box.xml || verdict=$?
+[ "$answer_verdict" = 0 ] || exit 2
 exit "$verdict"

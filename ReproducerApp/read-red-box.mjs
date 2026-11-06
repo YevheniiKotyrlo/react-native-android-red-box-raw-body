@@ -50,7 +50,11 @@ const judge = xml => {
     console.log(`  ${line.length > 160 ? `${line.slice(0, 160)}…` : line}`);
   }
   console.log(
-    `"Body:" ${showsBody ? 'shown' : 'not shown'}; JSON escapes shown as text: ${showsJsonEscapes ? 'yes' : 'no'}; ANSI escape sequences shown as text: ${escapeSequences}`,
+    `"Body:" ${
+      showsBody ? 'shown' : 'not shown'
+    }; JSON escapes shown as text: ${
+      showsJsonEscapes ? 'yes' : 'no'
+    }; ANSI escape sequences shown as text: ${escapeSequences}`,
   );
   if (!title.includes('this resolver throws')) {
     console.log("this is not the red box for the resolver's error");
