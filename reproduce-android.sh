@@ -50,7 +50,7 @@ exec {output}<&-
 adb logcat -c
 adb shell am start -n "$package/.MainActivity" > /dev/null
 # React Native logs the failure it shows in the red box, then puts the red box up.
-timeout 300 adb logcat -m 1 -s ReactNative:E -e 'Exception in native call' > tmp/logcat.txt ||
+timeout 300 adb logcat -m 1 -e 'Exception in native call' '*:E' > tmp/logcat.txt ||
   { echo 'the app logged no failure within 300 s' >&2; exit 2; }
 adb shell uiautomator dump --windows /sdcard/red-box.xml > /dev/null
 adb exec-out cat /sdcard/red-box.xml > tmp/red-box.xml
