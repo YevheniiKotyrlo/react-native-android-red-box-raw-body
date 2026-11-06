@@ -56,7 +56,7 @@ adb shell uiautomator dump --windows /sdcard/red-box.xml > /dev/null
 adb exec-out cat /sdcard/red-box.xml > tmp/red-box.xml
 adb exec-out screencap -p > tmp/red-box.png
 adb logcat -d -v tag -m 1 -e 'org.json.JSONException' '*:W' > tmp/logcat-parse.txt
-status=$(curl -s -o tmp/answer.json -w '%{http_code}' 'http://localhost:8081/index.bundle?platform=android&dev=true&minify=false' || true)
+status=$(curl -s --max-time 300 -o tmp/answer.json -w '%{http_code}' 'http://localhost:8081/index.bundle?platform=android&dev=true&minify=false' || true)
 stop_metro
 
 versions=$(node -p "'react-native ' + require('react-native/package.json').version + ', metro ' + require('metro/package.json').version")
