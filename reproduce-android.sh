@@ -55,6 +55,7 @@ timeout 300 adb logcat -m 1 -e 'Exception in native call' '*:E' > tmp/logcat.txt
 adb shell uiautomator dump --windows /sdcard/red-box.xml > /dev/null
 adb exec-out cat /sdcard/red-box.xml > tmp/red-box.xml
 adb exec-out screencap -p > tmp/red-box.png
+adb logcat -d -v tag -m 1 -e 'org.json.JSONException' '*:W' > tmp/logcat-parse.txt
 status=$(curl -s -o tmp/answer.json -w '%{http_code}' 'http://localhost:8081/index.bundle?platform=android&dev=true&minify=false' || true)
 stop_metro
 
@@ -69,6 +70,13 @@ console.log('type ' + body.type + ', filename ' + shown(body.filename) + ', line
 echo
 echo "$versions, $device on Android $android"
 echo "GET /index.bundle?platform=android -> $status: $answer"
+tr -d '\r' < tmp/logcat-parse.txt | { grep -E 'JSONException|DebugServerException[$]Companion[.]parse' || true; } > tmp/parse-failure.txt
+if [ -s tmp/parse-failure.txt ]; then
+  echo "React Native's log as it reads the answer:"
+  sed 's/^/  /' tmp/parse-failure.txt
+else
+  echo 'React Native logged no JSONException reading the answer'
+fi
 verdict=0
 node read-red-box.mjs tmp/red-box.xml || verdict=$?
 exit "$verdict"
