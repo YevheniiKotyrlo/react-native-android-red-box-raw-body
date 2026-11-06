@@ -23,13 +23,20 @@ stop_metro() {
   metro=
 }
 trap stop_metro EXIT
+# Names each long step on stderr as it starts, so a run that stops shows where.
+step() { printf '$ %s\n' "$*" >&2; }
 
+step yarn install --frozen-lockfile
 yarn install --frozen-lockfile
 abi=$(adb shell getprop ro.product.cpu.abi | tr -d '\r')
+step ./gradlew assembleDebug -PreactNativeArchitectures="$abi"
 (cd android && ./gradlew --quiet assembleDebug "-PreactNativeArchitectures=$abi")
 adb uninstall "$package" > /dev/null 2>&1 || true
-adb install android/app/build/outputs/apk/debug/app-debug.apk > /dev/null
+step adb install app-debug.apk
+timeout 600 adb install android/app/build/outputs/apk/debug/app-debug.apk > /dev/null ||
+  { echo 'the install failed or did not finish within 600 s' >&2; exit 2; }
 adb reverse tcp:8081 tcp:8081 > /dev/null
+step react-native start --port 8081
 
 # Metro's output is read until it says the dev server is ready.
 exec {output}< <(node node_modules/react-native/cli.js start --port 8081 2>&1 || true)
@@ -48,6 +55,7 @@ cat <&"$output" >> tmp/metro.log &
 exec {output}<&-
 
 adb logcat -c
+step adb shell am start -n "$package/.MainActivity"
 adb shell am start -n "$package/.MainActivity" > /dev/null
 # React Native logs the failure it shows in the red box, then puts the red box up.
 timeout 300 adb logcat -m 1 -e 'Exception in native call' '*:E' > tmp/logcat.txt ||
