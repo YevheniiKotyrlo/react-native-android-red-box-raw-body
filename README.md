@@ -1,17 +1,23 @@
-# React Native Reproducer
+# React Native's Android red box shows a Metro error answer that names no place as its raw JSON body
 
-> [!IMPORTANT]  
-> Do not just **fork** this repository, but use instead the [![Use this template](https://img.shields.io/badge/-Use%20this%20template-brightgreen)](https://github.com/cortinico/reproducer-react-native/generate) button on GitHub.
+When Metro answers a bundle request with an `InternalError` — a 500 whose JSON holds `type`, `errors` and `message`,
+and no `filename`, `lineNumber` or `column` — the Android red box shows "The development server returned response error
+code: 500", the URL and the raw body, with the message's line breaks as `\n` and its code frame's ANSI escape sequences
+as `\u001b[…m`. iOS shows the same answer's message.
 
-This is the React Native **reproducer** template. 
+`ReproducerApp/metro.config.js` has a resolver that throws a plain `Error`, which Metro has no error kind for, when
+`App.tsx` imports `./throws-in-the-resolver`.
 
-You can use this template to create a minimal, complete, and reproducible project that the community can use to understand what's your problem. You can read more about the principles of a good reproducible project [here](https://stackoverflow.com/help/mcve).
+## Steps
 
-This template is up to date with `react-native@latest` as you can find it on [npm](https://www.npmjs.com/package/react-native/v/latest).
+```sh
+cd ReproducerApp
+yarn install
+yarn android
+```
 
-## How to use this repository
+The app opens on the red box with the raw answer.
 
-1. Click on [![Use this template](https://img.shields.io/badge/-Use%20this%20template-brightgreen)](https://github.com/cortinico/reproducer-react-native/generate) button to create a new repository starting from this one.
-2. Git clone your repository locally.
-3. Edit the project to reproduce the failure you're seeing.
-4. Push your changes, so that Github Actions can run the CI.
+`reproduce-android.sh` runs the same on the device adb is attached to (`ANDROID_SERIAL` names one of several): it builds
+and installs the debug app, starts Metro, launches the app, reads the red box through `uiautomator`, and exits 1 while
+it shows the raw answer, 0 once it shows the answer's message without it, and 2 when a step fails.
